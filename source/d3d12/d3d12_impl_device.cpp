@@ -114,16 +114,22 @@ reshade::d3d12::device_impl::~device_impl()
 	assert(_queues.empty()); // All queues should have been unregistered and destroyed by the application at this point
 
 #if RESHADE_ADDON >= 2
-	const auto gpu_view_heap = _descriptor_heaps[0];
-	const UINT64 gpu_view_base = gpu_view_heap->_orig_base_gpu_handle.ptr;
-	unregister_descriptor_heap(0, gpu_view_base);
-	delete gpu_view_heap;
-	const auto gpu_sampler_heap = _descriptor_heaps[1];
-	const UINT64 gpu_sampler_base = gpu_sampler_heap->_orig_base_gpu_handle.ptr;
-	unregister_descriptor_heap(1, gpu_sampler_base);
-	delete gpu_sampler_heap;
+	reshade::log::message(reshade::log::level::warning, "device_impl destructor: descriptor_heaps size=%zu", _descriptor_heaps.size());
 
-	assert(_descriptor_heaps.empty());
+	const auto gpu_view_heap = _descriptor_heaps[0];
+	if (gpu_view_heap != nullptr)
+	{
+		const UINT64 gpu_view_base = gpu_view_heap->_orig_base_gpu_handle.ptr;
+		unregister_descriptor_heap(0, gpu_view_base);
+		delete gpu_view_heap;
+	}
+	const auto gpu_sampler_heap = _descriptor_heaps[1];
+	if (gpu_sampler_heap != nullptr)
+	{
+		const UINT64 gpu_sampler_base = gpu_sampler_heap->_orig_base_gpu_handle.ptr;
+		unregister_descriptor_heap(1, gpu_sampler_base);
+		delete gpu_sampler_heap;
+	}
 #endif
 }
 
@@ -1641,7 +1647,11 @@ void reshade::d3d12::device_impl::get_descriptor_heap_offset(api::descriptor_tab
 	if ((table.handle & 0xF000000000000000ull) == 0xF000000000000000ull)
 	{
 		const size_t heap_index = (table.handle >> heap_index_start) & 0xFFFFFFF;
-		assert(heap_index < _descriptor_heaps.size() && _descriptor_heaps[heap_index] != nullptr);
+		if (heap_index >= _descriptor_heaps.size() || _descriptor_heaps[heap_index] == nullptr)
+		{
+			reshade::log::message(reshade::log::level::warning, "Descriptor table references invalid heap index %zu (size %zu) in get_descriptor_heap_offset.", heap_index, _descriptor_heaps.size());
+			return;
+		}
 
 		*heap = to_handle(_descriptor_heaps[heap_index]->_orig);
 
@@ -2238,12 +2248,15 @@ void reshade::d3d12::device_impl::register_descriptor_heap(D3D12DescriptorHeap *
 {
 	const auto it = _descriptor_heaps.push_back(heap);
 
-	heap->initialize_descriptor_base_handle(std::distance(_descriptor_heaps.begin(), it));
+	const size_t heap_index = std::distance(_descriptor_heaps.begin(), it);
+	heap->initialize_descriptor_base_handle(heap_index);
 
 	const D3D12_DESCRIPTOR_HEAP_DESC desc = heap->_orig->GetDesc();
 
 	const UINT64 beg_gpu_handle = heap->_orig_base_gpu_handle.ptr;
 	const UINT64 end_gpu_handle = beg_gpu_handle + static_cast<UINT64>(desc.NumDescriptors) * _descriptor_handle_size[desc.Type];
+
+	reshade::log::message(reshade::log::level::warning, "Descriptor heap registered: index=%zu, type=%u, desc_count=%u, orig=%p, proxy=%p", heap_index, desc.Type, desc.NumDescriptors, heap->_orig, heap);
 
 	const std::unique_lock<std::shared_mutex> lock(_heap_gpu_ranges_mutex);
 
@@ -2251,20 +2264,17 @@ void reshade::d3d12::device_impl::register_descriptor_heap(D3D12DescriptorHeap *
 }
 void reshade::d3d12::device_impl::unregister_descriptor_heap(size_t heap_index, UINT64 orig_base_gpu_handle)
 {
-	size_t num_heaps = _descriptor_heaps.size();
-
-	if (heap_index < num_heaps)
-		_descriptor_heaps[heap_index] = nullptr;
-
-	while (num_heaps != 0)
+	if (heap_index < _descriptor_heaps.size())
 	{
-		if (_descriptor_heaps[num_heaps - 1] == nullptr)
-			num_heaps--;
-		else
-			break;
-	}
+		if (_descriptor_heaps[heap_index] == nullptr)
+			reshade::log::message(reshade::log::level::warning, "Descriptor heap at index %zu already null (double-unregister).", heap_index);
 
-	_descriptor_heaps.resize(num_heaps);
+		_descriptor_heaps[heap_index] = nullptr;
+	}
+	else
+	{
+		reshade::log::message(reshade::log::level::warning, "Descriptor heap index %zu out of range (size %zu).", heap_index, _descriptor_heaps.size());
+	}
 
 	const std::unique_lock<std::shared_mutex> lock(_heap_gpu_ranges_mutex);
 
@@ -2323,7 +2333,11 @@ void D3D12DescriptorHeap::initialize_descriptor_base_handle(size_t heap_index)
 D3D12_CPU_DESCRIPTOR_HANDLE reshade::d3d12::device_impl::convert_to_original_cpu_descriptor_handle(D3D12_CPU_DESCRIPTOR_HANDLE handle) const
 {
 	const size_t heap_index = (handle.ptr >> heap_index_start) & 0xFFFFFFF;
-	assert(heap_index < _descriptor_heaps.size() && _descriptor_heaps[heap_index] != nullptr);
+	if (heap_index >= _descriptor_heaps.size() || _descriptor_heaps[heap_index] == nullptr)
+	{
+		reshade::log::message(reshade::log::level::warning, "Descriptor handle references invalid heap index %zu (size %zu) in convert_to_original_cpu_descriptor_handle.", heap_index, _descriptor_heaps.size());
+		return { 0 };
+	}
 
 	return { _descriptor_heaps[heap_index]->_orig_base_cpu_handle.ptr + (handle.ptr & (((1ull << heap_index_start) - 1) ^ 0x7)) };
 }
@@ -2392,7 +2406,11 @@ D3D12_GPU_DESCRIPTOR_HANDLE reshade::d3d12::device_impl::convert_to_original_gpu
 	if ((table.handle & 0xF000000000000000ull) == 0xF000000000000000ull)
 	{
 		const size_t heap_index = (table.handle >> heap_index_start) & 0xFFFFFFF;
-		assert(heap_index < _descriptor_heaps.size() && _descriptor_heaps[heap_index] != nullptr);
+		if (heap_index >= _descriptor_heaps.size() || _descriptor_heaps[heap_index] == nullptr)
+		{
+			reshade::log::message(reshade::log::level::warning, "Descriptor handle references invalid heap index %zu (size %zu) in convert_to_original_gpu_descriptor_handle.", heap_index, _descriptor_heaps.size());
+			return { table.handle };
+		}
 
 		return { _descriptor_heaps[heap_index]->_orig_base_gpu_handle.ptr + (table.handle & (((1ull << heap_index_start) - 1) ^ 0x7)) };
 	}

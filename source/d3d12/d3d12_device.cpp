@@ -407,9 +407,7 @@ HRESULT STDMETHODCALLTYPE D3D12Device::CreateDescriptorHeap(const D3D12_DESCRIPT
 					unregister_descriptor_heap(heap_index, orig_base_gpu);
 				});
 
-#if RESHADE_VERBOSE_LOG
-				reshade::log::message(reshade::log::level::debug, "Returning ID3D12DescriptorHeap object %p (%p).", descriptor_heap_proxy, descriptor_heap_proxy->_orig);
-#endif
+				reshade::log::message(reshade::log::level::warning, "Returning ID3D12DescriptorHeap object %p (%p).", descriptor_heap_proxy, descriptor_heap_proxy->_orig);
 				*ppvHeap = descriptor_heap_proxy;
 			}
 			else // Do not hook object if we do not support the requested interface
@@ -421,12 +419,10 @@ HRESULT STDMETHODCALLTYPE D3D12Device::CreateDescriptorHeap(const D3D12_DESCRIPT
 		}
 #endif
 	}
-#if RESHADE_VERBOSE_LOG
 	else
 	{
 		reshade::log::message(reshade::log::level::warning, "ID3D12Device::CreateDescriptorHeap failed with error code %s.", reshade::log::hr_to_string(hr).c_str());
 	}
-#endif
 
 	return hr;
 }

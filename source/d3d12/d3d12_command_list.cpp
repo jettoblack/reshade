@@ -63,9 +63,7 @@ bool D3D12GraphicsCommandList::check_and_upgrade_interface(REFIID riid)
 			IUnknown *new_interface = nullptr;
 			if (FAILED(_orig->QueryInterface(riid, reinterpret_cast<void **>(&new_interface))))
 				return false;
-#if RESHADE_VERBOSE_LOG
-			reshade::log::message(reshade::log::level::debug, "Upgrading ID3D12GraphicsCommandList%hu object %p to ID3D12GraphicsCommandList%hu.", _interface_version, this, version);
-#endif
+			reshade::log::message(reshade::log::level::warning, "Upgrading ID3D12GraphicsCommandList%hu object %p to ID3D12GraphicsCommandList%hu.", _interface_version, this, version);
 			_orig->Release();
 			_orig = static_cast<ID3D12GraphicsCommandList *>(new_interface);
 			_interface_version = version;
@@ -115,9 +113,7 @@ ULONG   STDMETHODCALLTYPE D3D12GraphicsCommandList::Release()
 
 	const auto orig = _orig;
 	const auto interface_version = _interface_version;
-#if RESHADE_VERBOSE_LOG
-	reshade::log::message(reshade::log::level::debug, "Destroying ID3D12GraphicsCommandList%hu object %p (%p).", interface_version, this, orig);
-#endif
+	reshade::log::message(reshade::log::level::warning, "Destroying ID3D12GraphicsCommandList%hu object %p (%p).", interface_version, this, orig);
 	delete this;
 
 	const ULONG ref_orig = orig->Release();
