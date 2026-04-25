@@ -115,10 +115,12 @@ reshade::d3d12::device_impl::~device_impl()
 
 #if RESHADE_ADDON >= 2
 	const auto gpu_view_heap = _descriptor_heaps[0];
-	unregister_descriptor_heap(gpu_view_heap);
+	const UINT64 gpu_view_base = gpu_view_heap->_orig_base_gpu_handle.ptr;
+	unregister_descriptor_heap(0, gpu_view_base);
 	delete gpu_view_heap;
 	const auto gpu_sampler_heap = _descriptor_heaps[1];
-	unregister_descriptor_heap(gpu_sampler_heap);
+	const UINT64 gpu_sampler_base = gpu_sampler_heap->_orig_base_gpu_handle.ptr;
+	unregister_descriptor_heap(1, gpu_sampler_base);
 	delete gpu_sampler_heap;
 
 	assert(_descriptor_heaps.empty());
@@ -562,7 +564,8 @@ void reshade::d3d12::device_impl::destroy_resource_view(api::resource_view view)
 	D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle = { static_cast<SIZE_T>(view.handle) };
 
 	const std::unique_lock<std::shared_mutex> lock(_resource_mutex);
-	_views.erase(descriptor_handle.ptr);
+	if (const auto it = _views.find(descriptor_handle.ptr); it != _views.end())
+		it->second.first = nullptr;
 
 	for (UINT i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i)
 		_view_heaps[i].free(descriptor_handle);
@@ -576,7 +579,7 @@ reshade::api::resource reshade::d3d12::device_impl::get_resource_from_view(api::
 
 	const std::shared_lock<std::shared_mutex> lock(_resource_mutex);
 
-	if (const auto it = _views.find(descriptor_handle.ptr); it != _views.end())
+	if (const auto it = _views.find(descriptor_handle.ptr); it != _views.end() && it->second.first != nullptr)
 		return to_handle(it->second.first);
 	else
 		return assert(false), api::resource { 0 };
@@ -589,7 +592,7 @@ reshade::api::resource_view_desc reshade::d3d12::device_impl::get_resource_view_
 
 	const std::shared_lock<std::shared_mutex> lock(_resource_mutex);
 
-	if (const auto it = _views.find(descriptor_handle.ptr); it != _views.end())
+	if (const auto it = _views.find(descriptor_handle.ptr); it != _views.end() && it->second.first != nullptr)
 		return it->second.second;
 	else
 		return assert(false), api::resource_view_desc();
@@ -2170,7 +2173,7 @@ void reshade::d3d12::device_impl::register_resource_view(D3D12_CPU_DESCRIPTOR_HA
 {
 	const std::unique_lock<std::shared_mutex> lock(_resource_mutex);
 
-	if (const auto it = _views.find(source_handle.ptr); it != _views.end())
+	if (const auto it = _views.find(source_handle.ptr); it != _views.end() && it->second.first != nullptr)
 		_views.insert_or_assign(handle.ptr, it->second);
 	else
 		assert(false);
@@ -2246,18 +2249,12 @@ void reshade::d3d12::device_impl::register_descriptor_heap(D3D12DescriptorHeap *
 
 	_heap_gpu_ranges[beg_gpu_handle] = { end_gpu_handle, heap };
 }
-void reshade::d3d12::device_impl::unregister_descriptor_heap(D3D12DescriptorHeap *heap)
+void reshade::d3d12::device_impl::unregister_descriptor_heap(size_t heap_index, UINT64 orig_base_gpu_handle)
 {
 	size_t num_heaps = _descriptor_heaps.size();
 
-	for (size_t heap_index = 0; heap_index < num_heaps; ++heap_index)
-	{
-		if (heap == _descriptor_heaps[heap_index])
-		{
-			_descriptor_heaps[heap_index] = nullptr;
-			break;
-		}
-	}
+	if (heap_index < num_heaps)
+		_descriptor_heaps[heap_index] = nullptr;
 
 	while (num_heaps != 0)
 	{
@@ -2271,7 +2268,8 @@ void reshade::d3d12::device_impl::unregister_descriptor_heap(D3D12DescriptorHeap
 
 	const std::unique_lock<std::shared_mutex> lock(_heap_gpu_ranges_mutex);
 
-	_heap_gpu_ranges.erase(heap->_orig_base_gpu_handle.ptr);
+	if (_heap_gpu_ranges.erase(orig_base_gpu_handle) == 0)
+		reshade::log::message(reshade::log::level::warning, "Descriptor heap GPU range already unregistered (double-unregister).");
 }
 
 void D3D12DescriptorHeap::initialize_descriptor_base_handle(size_t heap_index)

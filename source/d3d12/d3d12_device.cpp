@@ -401,8 +401,10 @@ HRESULT STDMETHODCALLTYPE D3D12Device::CreateDescriptorHeap(const D3D12_DESCRIPT
 			{
 				register_descriptor_heap(descriptor_heap_proxy);
 
-				register_destruction_callback_d3dx(descriptor_heap_proxy, [this, descriptor_heap_proxy]() {
-					unregister_descriptor_heap(descriptor_heap_proxy);
+				const size_t heap_index = _descriptor_heaps.size() - 1;
+				const UINT64 orig_base_gpu = descriptor_heap_proxy->_orig_base_gpu_handle.ptr;
+				register_destruction_callback_d3dx(descriptor_heap_proxy, [this, heap_index, orig_base_gpu]() {
+					unregister_descriptor_heap(heap_index, orig_base_gpu);
 				});
 
 #if RESHADE_VERBOSE_LOG

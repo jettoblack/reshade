@@ -67,7 +67,7 @@ ULONG   STDMETHODCALLTYPE D3D12DescriptorHeap::Release()
 	}
 
 	const auto orig = _orig;
-#if 0
+#if RESHADE_VERBOSE_LOG
 	reshade::log::message(reshade::log::level::debug, "Destroying ID3D12DescriptorHeap object %p (%p).", this, orig);
 #endif
 	delete this;
