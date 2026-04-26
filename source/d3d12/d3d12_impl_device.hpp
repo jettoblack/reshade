@@ -137,11 +137,12 @@ namespace reshade::d3d12
 			return handle;
 		}
 
+	public:
+		void log_descriptor_heap_stats() const;
+
 	protected:
 		void register_resource(ID3D12Resource *resource, [[maybe_unused]] bool acceleration_structure);
 		void unregister_resource(ID3D12Resource *resource);
-
-		void log_descriptor_heap_stats() const;
 
 		void register_resource_view(D3D12_CPU_DESCRIPTOR_HANDLE handle, ID3D12Resource *resource, api::resource_view_desc desc);
 		void register_resource_view(D3D12_CPU_DESCRIPTOR_HANDLE handle, D3D12_CPU_DESCRIPTOR_HANDLE source_handle);
