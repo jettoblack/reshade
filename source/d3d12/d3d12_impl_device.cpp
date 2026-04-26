@@ -2335,7 +2335,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE reshade::d3d12::device_impl::convert_to_original_cpu
 	const size_t heap_index = (handle.ptr >> heap_index_start) & 0xFFFFFFF;
 	if (heap_index >= _descriptor_heaps.size() || _descriptor_heaps[heap_index] == nullptr)
 	{
-		reshade::log::message(reshade::log::level::warning, "Descriptor handle references invalid heap index %zu (size %zu) in convert_to_original_cpu_descriptor_handle.", heap_index, _descriptor_heaps.size());
+		reshade::log::message(reshade::log::level::warning, "Descriptor handle references invalid heap index %zu (size %zu) in convert_to_original_cpu_descriptor_handle (raw handle = 0x%llX).", heap_index, _descriptor_heaps.size(), static_cast<unsigned long long>(handle.ptr));
 		return { 0 };
 	}
 

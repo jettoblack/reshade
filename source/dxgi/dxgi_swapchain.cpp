@@ -996,6 +996,12 @@ void DXGISwapChain::on_present(UINT flags, [[maybe_unused]] const DXGI_PRESENT_P
 		reshade::present_effect_runtime(_impl);
 		break;
 	case reshade::api::device_api::d3d12:
+	{
+		static unsigned long long s_d3d12_frame_count = 0;
+		++s_d3d12_frame_count;
+		if ((s_d3d12_frame_count % 1000) == 0)
+			reshade::log::message(reshade::log::level::warning, "D3D12 Present frame %llu.", s_d3d12_frame_count);
+
 #if RESHADE_ADDON
 		reshade::invoke_addon_event<reshade::addon_event::present>(
 			static_cast<D3D12CommandQueue *>(_direct3d_command_queue),
@@ -1008,6 +1014,7 @@ void DXGISwapChain::on_present(UINT flags, [[maybe_unused]] const DXGI_PRESENT_P
 		reshade::present_effect_runtime(_impl);
 		static_cast<D3D12CommandQueue *>(_direct3d_command_queue)->flush_immediate_command_list();
 		break;
+	}
 	}
 }
 

@@ -531,6 +531,8 @@ void reshade::d3d12::command_list_impl::bind_descriptor_tables(api::shader_stage
 	{
 		// Attempt to keep combination of descriptor heaps set by the application if one of them is restored
 		// An application may set both descriptor heaps, but then only bind descriptor tables allocated from one of them, causing add-ons to be unable to restore the other descriptor heap
+		reshade::log::message(reshade::log::level::warning, "Restoring previous descriptor heaps: [%p, %p] (current: [%p, %p]).",
+			_previous_descriptor_heaps[0], _previous_descriptor_heaps[1], _current_descriptor_heaps[0], _current_descriptor_heaps[1]);
 		std::copy_n(_previous_descriptor_heaps, 2, heaps);
 	}
 #endif
