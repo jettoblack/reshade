@@ -153,6 +153,11 @@ namespace reshade::d3d12
 		concurrency::concurrent_vector<D3D12DescriptorHeap *> _descriptor_heaps;
 #endif
 
+	protected:
+		// Diagnostic: track which resources accumulate the most Create*View calls
+		mutable std::unordered_map<void *, uint32_t> _resource_view_create_count;
+		mutable uint32_t _total_view_creates = 0;
+
 	private:
 		std::vector<command_queue_impl *> _queues;
 

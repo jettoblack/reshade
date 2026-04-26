@@ -12,7 +12,8 @@
 #include "dll_resources.hpp"
 #include <cwchar> // std::wcslen
 #include <cstring> // std::memcmp, std::memcpy, std::strlen
-#include <algorithm> // std::copy_n, std::find, std::find_if, std::max, std::min
+#include <algorithm> // std::copy_n, std::find, std::find_if, std::max, std::min, std::sort
+#include <vector>
 #include <utf8/unchecked.h>
 #include <dxgi1_4.h>
 
@@ -2428,8 +2429,25 @@ void reshade::d3d12::device_impl::log_descriptor_heap_stats() const
 	const UINT64 sampler_wraps = _gpu_sampler_heap.get_transient_wrap_count();
 	const size_t view_map_size = _views.size();
 
-	log::message(log::level::warning, "Descriptor heap stats: view_heap wraps=%llu, sampler_heap wraps=%llu, _views map entries=%zu",
-		view_wraps, sampler_wraps, view_map_size);
+	log::message(log::level::warning, "Descriptor heap stats: view_heap wraps=%llu, sampler_heap wraps=%llu, _views map entries=%zu, total_view_creates=%u",
+		view_wraps, sampler_wraps, view_map_size, _total_view_creates);
+
+	// Log top-10 resources by view creation count
+	if (!_resource_view_create_count.empty())
+	{
+		std::vector<std::pair<void *, uint32_t>> sorted_views(_resource_view_create_count.begin(), _resource_view_create_count.end());
+		std::sort(sorted_views.begin(), sorted_views.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+
+		const size_t top_count = std::min(sorted_views.size(), size_t(10));
+		for (size_t i = 0; i < top_count; ++i)
+		{
+			log::message(log::level::warning, "  View count: resource=%p, views=%u", sorted_views[i].first, sorted_views[i].second);
+		}
+
+		// Reset counters to track growth rate between intervals
+		_resource_view_create_count.clear();
+		_total_view_creates = 0;
+	}
 }
 
 D3D12_GPU_DESCRIPTOR_HANDLE reshade::d3d12::device_impl::convert_to_original_gpu_descriptor_handle(api::descriptor_table table) const
