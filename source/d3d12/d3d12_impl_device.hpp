@@ -141,6 +141,8 @@ namespace reshade::d3d12
 		void register_resource(ID3D12Resource *resource, [[maybe_unused]] bool acceleration_structure);
 		void unregister_resource(ID3D12Resource *resource);
 
+		void log_descriptor_heap_stats() const;
+
 		void register_resource_view(D3D12_CPU_DESCRIPTOR_HANDLE handle, ID3D12Resource *resource, api::resource_view_desc desc);
 		void register_resource_view(D3D12_CPU_DESCRIPTOR_HANDLE handle, D3D12_CPU_DESCRIPTOR_HANDLE source_handle);
 
@@ -158,8 +160,6 @@ namespace reshade::d3d12
 		descriptor_heap_cpu _view_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
 		descriptor_heap_gpu<D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 128, 128> _gpu_sampler_heap;
 		descriptor_heap_gpu<D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 50000, 2048> _gpu_view_heap;
-
-		void log_descriptor_heap_stats() const;
 
 		// Null descriptor sources: empty heaps initialized to zero by D3D12,
 		// used to clear transient slots via CopyDescriptors to prevent VKD3D view map leaks.

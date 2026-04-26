@@ -1004,7 +1004,7 @@ void DXGISwapChain::on_present(UINT flags, [[maybe_unused]] const DXGI_PRESENT_P
 
 		// Periodic descriptor heap stats for crash diagnostics
 		if ((s_d3d12_frame_count % 5000) == 0)
-			static_cast<reshade::d3d12::D3D12CommandQueue *>(_direct3d_command_queue)->_device_impl->log_descriptor_heap_stats();
+			static_cast<reshade::d3d12::command_queue_impl *>(_direct3d_command_queue)->get_device_impl()->log_descriptor_heap_stats();
 
 #if RESHADE_ADDON
 		reshade::invoke_addon_event<reshade::addon_event::present>(
