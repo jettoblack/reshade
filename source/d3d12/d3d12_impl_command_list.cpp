@@ -405,6 +405,10 @@ void reshade::d3d12::command_list_impl::push_descriptors(api::shader_stage stage
 
 	if (update.type == api::descriptor_type::constant_buffer)
 	{
+		D3D12_CPU_DESCRIPTOR_HANDLE clear_handle = base_handle;
+		for (uint32_t k = 0; k < update.count; ++k, clear_handle = _device_impl->offset_descriptor_handle(clear_handle, 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV))
+			_device_impl->_orig->CreateConstantBufferView(nullptr, clear_handle);
+
 		for (uint32_t k = 0; k < update.count; ++k, base_handle = _device_impl->offset_descriptor_handle(base_handle, 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV))
 		{
 			const auto &view_range = static_cast<const api::buffer_range *>(update.descriptors)[k];
@@ -438,6 +442,13 @@ void reshade::d3d12::command_list_impl::push_descriptors(api::shader_stage stage
 	}
 	else if (update.type == api::descriptor_type::acceleration_structure)
 	{
+		D3D12_CPU_DESCRIPTOR_HANDLE clear_handle = base_handle;
+		D3D12_SHADER_RESOURCE_VIEW_DESC null_srv_desc = {};
+		null_srv_desc.Format = DXGI_FORMAT_UNKNOWN;
+		null_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+		for (uint32_t k = 0; k < update.count; ++k, clear_handle = _device_impl->offset_descriptor_handle(clear_handle, 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV))
+			_device_impl->_orig->CreateShaderResourceView(nullptr, &null_srv_desc, clear_handle);
+
 		for (uint32_t k = 0; k < update.count; ++k, base_handle = _device_impl->offset_descriptor_handle(base_handle, 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV))
 		{
 			D3D12_SHADER_RESOURCE_VIEW_DESC view_desc;
@@ -957,6 +968,10 @@ void reshade::d3d12::command_list_impl::clear_unordered_access_view_uint(api::re
 		_orig->SetDescriptorHeaps(1, &view_heap);
 
 	D3D12_UNORDERED_ACCESS_VIEW_DESC internal_desc = {};
+	internal_desc.Format = DXGI_FORMAT_UNKNOWN;
+	internal_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+	_device_impl->_orig->CreateUnorderedAccessView(nullptr, nullptr, &internal_desc, table_base);
+	internal_desc = {};
 	convert_resource_view_desc(_device_impl->get_resource_view_desc(uav), internal_desc);
 	_device_impl->_orig->CreateUnorderedAccessView(reinterpret_cast<ID3D12Resource *>(resource.handle), nullptr, &internal_desc, table_base);
 	_orig->ClearUnorderedAccessViewUint(table_base_gpu, D3D12_CPU_DESCRIPTOR_HANDLE { static_cast<SIZE_T>(uav.handle) }, reinterpret_cast<ID3D12Resource *>(resource.handle), values, rect_count, reinterpret_cast<const D3D12_RECT *>(rects));
@@ -985,6 +1000,10 @@ void reshade::d3d12::command_list_impl::clear_unordered_access_view_float(api::r
 		_orig->SetDescriptorHeaps(1, &view_heap);
 
 	D3D12_UNORDERED_ACCESS_VIEW_DESC internal_desc = {};
+	internal_desc.Format = DXGI_FORMAT_UNKNOWN;
+	internal_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+	_device_impl->_orig->CreateUnorderedAccessView(nullptr, nullptr, &internal_desc, table_base);
+	internal_desc = {};
 	convert_resource_view_desc(_device_impl->get_resource_view_desc(uav), internal_desc);
 	_device_impl->_orig->CreateUnorderedAccessView(reinterpret_cast<ID3D12Resource *>(resource.handle), nullptr, &internal_desc, table_base);
 	_orig->ClearUnorderedAccessViewFloat(table_base_gpu, D3D12_CPU_DESCRIPTOR_HANDLE { static_cast<SIZE_T>(uav.handle) }, reinterpret_cast<ID3D12Resource *>(resource.handle), values, rect_count, reinterpret_cast<const D3D12_RECT *>(rects));
@@ -1029,6 +1048,20 @@ void reshade::d3d12::command_list_impl::generate_mipmaps(api::resource_view srv)
 	uav_desc.Texture2DArray.FirstArraySlice = 0;
 	uav_desc.Texture2DArray.ArraySize = desc.DepthOrArraySize;
 	uav_desc.Texture2DArray.PlaneSlice = 0;
+
+	// Clear any existing views in transient slots before creating new ones,
+	// to prevent VKD3D view map leak (ring buffer overwrites without cleanup).
+	D3D12_CPU_DESCRIPTOR_HANDLE clear_handle = base_handle;
+	D3D12_UNORDERED_ACCESS_VIEW_DESC null_uav_desc = {};
+	null_uav_desc.Format = DXGI_FORMAT_UNKNOWN;
+	null_uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
+	null_uav_desc.Texture2DArray.MipSlice = view_desc.texture.first_level;
+	null_uav_desc.Texture2DArray.FirstArraySlice = 0;
+	null_uav_desc.Texture2DArray.ArraySize = desc.DepthOrArraySize;
+	null_uav_desc.Texture2DArray.PlaneSlice = 0;
+	for (uint32_t level = 0; level < level_count_multiple_of_6; ++level,
+			clear_handle = _device_impl->offset_descriptor_handle(clear_handle, 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV))
+		_device_impl->_orig->CreateUnorderedAccessView(nullptr, nullptr, &null_uav_desc, clear_handle);
 
 	for (uint32_t level = 0; level < level_count; ++level, ++uav_desc.Texture2DArray.MipSlice,
 			base_handle = _device_impl->offset_descriptor_handle(base_handle, 1, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV))
