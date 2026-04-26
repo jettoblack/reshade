@@ -2436,10 +2436,9 @@ void reshade::d3d12::device_impl::log_descriptor_heap_stats() const
 	if (!_resource_view_create_count.empty())
 	{
 		// Copy to vector with atomic .load() values for sorting
-		std::vector<std::pair<const void *, uint32_t>> sorted_views;
-		sorted_views.reserve(std::min(_resource_view_create_count.size(), size_t(20)));
-		for (const auto& entry : _resource_view_create_count)
-			sorted_views.emplace_back(entry.first, entry.second.load());
+		std::vector<std::pair<void *, uint32_t>> sorted_views;
+		for (auto it = _resource_view_create_count.begin(); it != _resource_view_create_count.end(); ++it)
+			sorted_views.push_back(std::make_pair(it->first, it->second.load()));
 
 		std::sort(sorted_views.begin(), sorted_views.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
 
@@ -2450,8 +2449,8 @@ void reshade::d3d12::device_impl::log_descriptor_heap_stats() const
 		}
 
 		// Reset counters to track growth rate between intervals
-		for (auto& entry : _resource_view_create_count)
-			entry.second.store(0);
+		for (auto it = _resource_view_create_count.begin(); it != _resource_view_create_count.end(); ++it)
+			it->second.store(0);
 		_total_view_creates.store(0);
 	}
 }
