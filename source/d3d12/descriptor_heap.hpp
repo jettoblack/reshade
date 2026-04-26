@@ -199,6 +199,8 @@ namespace reshade::d3d12
 			return true;
 		}
 
+		UINT64 get_transient_wrap_count() const { return _current_transient_tail / transient_size; }
+
 		void free(D3D12_GPU_DESCRIPTOR_HANDLE base_handle_gpu)
 		{
 			// Ensure this handle falls into the static range of this heap

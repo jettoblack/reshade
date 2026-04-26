@@ -2420,6 +2420,18 @@ D3D12_CPU_DESCRIPTOR_HANDLE reshade::d3d12::device_impl::convert_to_original_cpu
 	return handle;
 }
 
+void reshade::d3d12::device_impl::log_descriptor_heap_stats() const
+{
+	std::lock_guard<std::shared_mutex> lock(_resource_mutex);
+
+	const UINT64 view_wraps = _gpu_view_heap.get_transient_wrap_count();
+	const UINT64 sampler_wraps = _gpu_sampler_heap.get_transient_wrap_count();
+	const size_t view_map_size = _views.size();
+
+	log::message(log::level::warning, "Descriptor heap stats: view_heap wraps=%llu, sampler_heap wraps=%llu, _views map entries=%zu",
+		view_wraps, sampler_wraps, view_map_size);
+}
+
 D3D12_GPU_DESCRIPTOR_HANDLE reshade::d3d12::device_impl::convert_to_original_gpu_descriptor_handle(api::descriptor_table table) const
 {
 #if RESHADE_ADDON >= 2

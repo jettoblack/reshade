@@ -1002,6 +1002,10 @@ void DXGISwapChain::on_present(UINT flags, [[maybe_unused]] const DXGI_PRESENT_P
 		if ((s_d3d12_frame_count % 1000) == 0)
 			reshade::log::message(reshade::log::level::warning, "D3D12 Present frame %llu.", s_d3d12_frame_count);
 
+		// Periodic descriptor heap stats for crash diagnostics
+		if ((s_d3d12_frame_count % 5000) == 0)
+			static_cast<reshade::d3d12::D3D12CommandQueue *>(_direct3d_command_queue)->_device_impl->log_descriptor_heap_stats();
+
 #if RESHADE_ADDON
 		reshade::invoke_addon_event<reshade::addon_event::present>(
 			static_cast<D3D12CommandQueue *>(_direct3d_command_queue),

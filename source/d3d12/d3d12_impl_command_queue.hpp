@@ -35,6 +35,8 @@ namespace reshade::d3d12
 
 		uint64_t get_timestamp_frequency() const final;
 
+		[[nodiscard]] device_impl *get_device_impl() const { return _device_impl; }
+
 		// 'ID3D12CommandQueue' is thread-safe, so need to lock when accessed from multiple threads
 		std::recursive_mutex _mutex;
 
