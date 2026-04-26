@@ -2430,12 +2430,17 @@ void reshade::d3d12::device_impl::log_descriptor_heap_stats() const
 	const size_t view_map_size = _views.size();
 
 	log::message(log::level::warning, "Descriptor heap stats: view_heap wraps=%llu, sampler_heap wraps=%llu, _views map entries=%zu, total_view_creates=%u",
-		view_wraps, sampler_wraps, view_map_size, _total_view_creates);
+		view_wraps, sampler_wraps, view_map_size, _total_view_creates.load());
 
 	// Log top-10 resources by view creation count
 	if (!_resource_view_create_count.empty())
 	{
-		std::vector<std::pair<void *, uint32_t>> sorted_views(_resource_view_create_count.begin(), _resource_view_create_count.end());
+		// Copy to vector with atomic .load() values for sorting
+		std::vector<std::pair<const void *, uint32_t>> sorted_views;
+		sorted_views.reserve(std::min(_resource_view_create_count.size(), size_t(20)));
+		for (const auto& entry : _resource_view_create_count)
+			sorted_views.emplace_back(entry.first, entry.second.load());
+
 		std::sort(sorted_views.begin(), sorted_views.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
 
 		const size_t top_count = std::min(sorted_views.size(), size_t(10));
@@ -2445,8 +2450,9 @@ void reshade::d3d12::device_impl::log_descriptor_heap_stats() const
 		}
 
 		// Reset counters to track growth rate between intervals
-		_resource_view_create_count.clear();
-		_total_view_creates = 0;
+		for (auto& entry : _resource_view_create_count)
+			entry.second.store(0);
+		_total_view_creates.store(0);
 	}
 }
 

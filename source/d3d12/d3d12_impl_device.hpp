@@ -9,7 +9,9 @@
 #include "reshade_api_object_impl.hpp"
 #include <map>
 #include <unordered_map>
+#include <atomic>
 #include <concurrent_vector.h>
+#include <concurrent_unordered_map.h>
 
 class D3D12DescriptorHeap;
 
@@ -155,8 +157,9 @@ namespace reshade::d3d12
 
 	protected:
 		// Diagnostic: track which resources accumulate the most Create*View calls
-		mutable std::unordered_map<void *, uint32_t> _resource_view_create_count;
-		mutable uint32_t _total_view_creates = 0;
+		// Concurrent container + atomic values — no locks needed, 16+ threads writing
+		mutable concurrency::concurrent_unordered_map<void *, std::atomic<uint32_t>> _resource_view_create_count;
+		mutable std::atomic<uint32_t> _total_view_creates{ 0 };
 
 	private:
 		std::vector<command_queue_impl *> _queues;

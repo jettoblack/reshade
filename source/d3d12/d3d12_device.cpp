@@ -511,7 +511,7 @@ void    STDMETHODCALLTYPE D3D12Device::CreateShaderResourceView(ID3D12Resource *
 	DestDescriptor = convert_to_original_cpu_descriptor_handle(DestDescriptor);
 #endif
 	// Track which resources create the most views (diagnostic for VKD3D view leak)
-	if (pResource != nullptr) { _resource_view_create_count[pResource]++; _total_view_creates++; }
+	if (pResource != nullptr) { _resource_view_create_count[pResource].fetch_add(1); _total_view_creates.fetch_add(1); }
 	_orig->CreateShaderResourceView(pResource, pDesc, DestDescriptor);
 
 #if RESHADE_ADDON
@@ -557,7 +557,7 @@ void    STDMETHODCALLTYPE D3D12Device::CreateUnorderedAccessView(ID3D12Resource 
 	DestDescriptor = convert_to_original_cpu_descriptor_handle(DestDescriptor);
 #endif
 	// Track which resources create the most views (diagnostic for VKD3D view leak)
-	if (pResource != nullptr) { _resource_view_create_count[pResource]++; _total_view_creates++; }
+	if (pResource != nullptr) { _resource_view_create_count[pResource].fetch_add(1); _total_view_creates.fetch_add(1); }
 	_orig->CreateUnorderedAccessView(pResource, pCounterResource, pDesc, DestDescriptor);
 
 #if RESHADE_ADDON
@@ -599,7 +599,7 @@ void    STDMETHODCALLTYPE D3D12Device::CreateRenderTargetView(ID3D12Resource *pR
 #endif
 
 	// Track which resources create the most views (diagnostic for VKD3D view leak)
-	if (pResource != nullptr) { _resource_view_create_count[pResource]++; _total_view_creates++; }
+	if (pResource != nullptr) { _resource_view_create_count[pResource].fetch_add(1); _total_view_creates.fetch_add(1); }
 	_orig->CreateRenderTargetView(pResource, pDesc, DestDescriptor);
 
 #if RESHADE_ADDON
@@ -623,7 +623,7 @@ void    STDMETHODCALLTYPE D3D12Device::CreateDepthStencilView(ID3D12Resource *pR
 #endif
 
 	// Track which resources create the most views (diagnostic for VKD3D view leak)
-	if (pResource != nullptr) { _resource_view_create_count[pResource]++; _total_view_creates++; }
+	if (pResource != nullptr) { _resource_view_create_count[pResource].fetch_add(1); _total_view_creates.fetch_add(1); }
 	_orig->CreateDepthStencilView(pResource, pDesc, DestDescriptor);
 
 #if RESHADE_ADDON
