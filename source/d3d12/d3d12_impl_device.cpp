@@ -2435,22 +2435,20 @@ void reshade::d3d12::device_impl::log_descriptor_heap_stats() const
 	// Log top-10 resources by view creation count
 	if (!_resource_view_create_count.empty())
 	{
-		// Copy to vector with atomic .load() values for sorting
+		// Copy to vector for sorting
 		std::vector<std::pair<void *, uint32_t>> sorted_views;
 		for (auto it = _resource_view_create_count.begin(); it != _resource_view_create_count.end(); ++it)
-			sorted_views.emplace_back((void*)it->first, it->second.load());
+			sorted_views.emplace_back(const_cast<void *>(it->first), it->second);
 
-		std::sort(sorted_views.begin(), sorted_views.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+		std::sort(sorted_views.begin(), sorted_views.end(), [](const auto &a, const auto &b) { return a.second > b.second; });
 
 		const size_t top_count = std::min(sorted_views.size(), size_t(10));
 		for (size_t i = 0; i < top_count; ++i)
-		{
 			log::message(log::level::warning, "  View count: resource=%p, views=%u", sorted_views[i].first, sorted_views[i].second);
-		}
 
 		// Reset counters to track growth rate between intervals
 		for (auto it = _resource_view_create_count.begin(); it != _resource_view_create_count.end(); ++it)
-			it->second.store(0);
+			it->second = 0;
 		_total_view_creates.store(0);
 	}
 }

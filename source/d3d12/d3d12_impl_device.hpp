@@ -157,8 +157,8 @@ namespace reshade::d3d12
 
 	protected:
 		// Diagnostic: track which resources accumulate the most Create*View calls
-		// Concurrent container + atomic values — no locks needed, 16+ threads writing
-		mutable concurrency::concurrent_unordered_map<void *, std::atomic<uint32_t>> _resource_view_create_count;
+		// concurrent_unordered_map handles thread-safe insertion; minor count inaccuracy acceptable
+		mutable concurrency::concurrent_unordered_map<void *, uint32_t> _resource_view_create_count;
 		mutable std::atomic<uint32_t> _total_view_creates{ 0 };
 
 	private:
