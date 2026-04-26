@@ -159,6 +159,13 @@ namespace reshade::d3d12
 		descriptor_heap_gpu<D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 128, 128> _gpu_sampler_heap;
 		descriptor_heap_gpu<D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 50000, 2048> _gpu_view_heap;
 
+		// Null descriptor sources: empty heaps initialized to zero by D3D12,
+		// used to clear transient slots via CopyDescriptors to prevent VKD3D view map leaks.
+		com_ptr<ID3D12DescriptorHeap> _null_view_heap;
+		D3D12_CPU_DESCRIPTOR_HANDLE _null_view_descriptor = {};
+		com_ptr<ID3D12DescriptorHeap> _null_sampler_heap;
+		D3D12_CPU_DESCRIPTOR_HANDLE _null_sampler_descriptor = {};
+
 		mutable std::shared_mutex _resource_mutex;
 #if RESHADE_ADDON >= 2
 		mutable std::shared_mutex _heap_gpu_ranges_mutex;

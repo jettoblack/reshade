@@ -76,6 +76,27 @@ reshade::d3d12::device_impl::device_impl(ID3D12Device *device) :
 	for (UINT type = 0; type < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++type)
 		_descriptor_handle_size[type] = device->GetDescriptorHandleIncrementSize(static_cast<D3D12_DESCRIPTOR_HEAP_TYPE>(type));
 
+	// Create single-entry null descriptor heaps for clearing transient slots.
+	// D3D12 guarantees newly created descriptor heaps contain zeroed (null) descriptors,
+	// and CopyDescriptors from these prevents VKD3D view map leaks.
+	{
+		D3D12_DESCRIPTOR_HEAP_DESC nullHeapDesc{};
+		nullHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		nullHeapDesc.NumDescriptors = 1;
+		nullHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		nullHeapDesc.NodeMask = 0;
+		if (SUCCEEDED(device->CreateDescriptorHeap(&nullHeapDesc, IID_PPV_ARGS(&_null_view_heap))))
+			_null_view_descriptor = _null_view_heap->GetCPUDescriptorHandleForHeapStart();
+		else
+			log::message(log::level::warning, "Failed to create null view descriptor heap!");
+
+		nullHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+		if (SUCCEEDED(device->CreateDescriptorHeap(&nullHeapDesc, IID_PPV_ARGS(&_null_sampler_heap))))
+			_null_sampler_descriptor = _null_sampler_heap->GetCPUDescriptorHandleForHeapStart();
+		else
+			log::message(log::level::warning, "Failed to create null sampler descriptor heap!");
+	}
+
 #if RESHADE_ADDON >= 2
 	// Make some space in the descriptor heap array, so that it is unlikely to need reallocation
 	_descriptor_heaps.reserve(4096);
