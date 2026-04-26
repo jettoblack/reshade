@@ -2438,7 +2438,7 @@ void reshade::d3d12::device_impl::log_descriptor_heap_stats() const
 		// Copy to vector with atomic .load() values for sorting
 		std::vector<std::pair<void *, uint32_t>> sorted_views;
 		for (auto it = _resource_view_create_count.begin(); it != _resource_view_create_count.end(); ++it)
-			sorted_views.push_back(std::make_pair(it->first, it->second.load()));
+			sorted_views.emplace_back((void*)it->first, it->second.load());
 
 		std::sort(sorted_views.begin(), sorted_views.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
 
