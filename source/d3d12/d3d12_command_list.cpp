@@ -504,7 +504,18 @@ void STDMETHODCALLTYPE D3D12GraphicsCommandList::SetDescriptorHeaps(UINT NumDesc
 #if RESHADE_ADDON >= 2
 	temp_mem<ID3D12DescriptorHeap *, 2> heaps(NumDescriptorHeaps);
 	for (UINT i = 0; i < NumDescriptorHeaps; ++i)
-		heaps[i] = static_cast<D3D12DescriptorHeap *>(ppDescriptorHeaps[i])->_orig;
+	{
+		if (com_ptr<D3D12DescriptorHeap> heap_proxy;
+			SUCCEEDED(ppDescriptorHeaps[i]->QueryInterface(&heap_proxy)))
+		{
+			heaps[i] = heap_proxy->_orig;
+		}
+		else
+		{
+			reshade::log::message(reshade::log::level::warning, "Non-proxied descriptor heap %p passed to SetDescriptorHeaps.", ppDescriptorHeaps[i]);
+			heaps[i] = ppDescriptorHeaps[i];
+		}
+	}
 	ppDescriptorHeaps = heaps.p;
 #endif
 

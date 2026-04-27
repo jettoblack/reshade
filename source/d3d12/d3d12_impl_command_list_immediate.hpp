@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <mutex>
 #include "d3d12_impl_command_list.hpp"
 
 namespace reshade::d3d12
@@ -26,6 +27,8 @@ namespace reshade::d3d12
 		void update_texture_region(const api::subresource_data &data, api::resource dest, uint32_t dest_subresource, const api::subresource_box *dest_box) final;
 
 		bool flush(bool wait);
+
+		mutable std::mutex _mutex;
 
 	private:
 		ID3D12CommandQueue *const _parent_queue;
