@@ -6,6 +6,7 @@
 #pragma once
 
 #include "vulkan_impl_command_list.hpp"
+#include <mutex>
 
 namespace reshade::vulkan
 {
@@ -27,6 +28,7 @@ namespace reshade::vulkan
 		bool flush(VkSubmitInfo *wait_semaphore_info);
 
 	private:
+		mutable std::mutex _mutex;
 		const VkQueue _parent_queue;
 
 		uint32_t _cmd_index = 0;

@@ -6,6 +6,7 @@
 #pragma once
 
 #include "d3d12_impl_command_list.hpp"
+#include <mutex>
 
 namespace reshade::d3d12
 {
@@ -28,6 +29,7 @@ namespace reshade::d3d12
 		bool flush(bool wait);
 
 	private:
+		mutable std::mutex _mutex;
 		ID3D12CommandQueue *const _parent_queue;
 		UINT32 _cmd_index = 0;
 		HANDLE _fence_event = nullptr;

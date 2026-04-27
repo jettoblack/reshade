@@ -120,9 +120,11 @@ bool reshade::d3d12::command_list_immediate_impl::flush(bool wait)
 {
 	s_last_immediate_command_list = this;
 
-	if (!_has_commands)
+	std::lock_guard<std::mutex> lock(_mutex);
+
+	if (_has_commands.load(std::memory_order_acquire) == false)
 		return true;
-	_has_commands = false;
+	_has_commands.store(false, std::memory_order_release);
 
 	_current_root_signature[0] = nullptr;
 	_current_root_signature[1] = nullptr;

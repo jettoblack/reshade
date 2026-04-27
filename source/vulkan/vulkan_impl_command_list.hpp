@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <atomic>
+
 namespace reshade::vulkan
 {
 	class device_impl;
@@ -75,7 +77,7 @@ namespace reshade::vulkan
 
 	protected:
 		device_impl *const _device_impl;
-		bool _has_commands = false;
+		std::atomic<bool> _has_commands{false};
 		uint8_t _is_in_render_pass = 0;
 	};
 
