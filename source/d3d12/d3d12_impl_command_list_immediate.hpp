@@ -28,6 +28,13 @@ namespace reshade::d3d12
 
 		bool flush(bool wait);
 
+		// Close the immediate command list for batched execution with other command lists.
+		// Returns the closed command list pointer, or nullptr if no commands are pending.
+		// Caller must call post_execute_cleanup() after ExecuteCommandLists completes.
+		ID3D12GraphicsCommandList *close_for_batch();
+		// Post-execute cleanup: signal fences, advance ring buffer, reset allocator and command list.
+		void post_execute_cleanup();
+
 		mutable std::mutex _mutex;
 
 	private:

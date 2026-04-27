@@ -116,6 +116,79 @@ void reshade::d3d12::command_list_immediate_impl::update_texture_region(const ap
 	_device_impl->update_texture_region(data, dest, dest_subresource, dest_box);
 }
 
+ID3D12GraphicsCommandList *reshade::d3d12::command_list_immediate_impl::close_for_batch()
+{
+	// Lock is held by caller or must be acquired
+	std::lock_guard<std::mutex> lock(_mutex);
+
+	s_last_immediate_command_list = this;
+
+	if (!_has_commands.load())
+		return nullptr;
+	_has_commands.store(false);
+
+	_current_root_signature[0] = nullptr;
+	_current_root_signature[1] = nullptr;
+	_current_descriptor_heaps[0] = nullptr;
+	_current_descriptor_heaps[1] = nullptr;
+
+	assert(_orig != nullptr);
+
+	if (const HRESULT hr = _orig->Close(); FAILED(hr))
+	{
+		log::message(log::level::error, "Failed to close immediate command list with error code %s!", reshade::log::hr_to_string(hr).c_str());
+
+		_current_query_fences.clear();
+
+		// A command list that failed to close can never be reset, so destroy it and create a new one
+		_orig->Release(); _orig = nullptr;
+		if (SUCCEEDED(_device_impl->_orig->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, _cmd_alloc[_cmd_index].get(), nullptr, IID_PPV_ARGS(&_orig))))
+		{
+			_orig->SetName(L"ReShade immediate command list");
+			on_init();
+		}
+
+		return nullptr;
+	}
+
+	return _orig;
+}
+
+void reshade::d3d12::command_list_immediate_impl::post_execute_cleanup()
+{
+	std::lock_guard<std::mutex> lock(_mutex);
+
+	s_last_immediate_command_list = this;
+
+	if (const UINT64 sync_value = _fence_value[_cmd_index] + NUM_COMMAND_FRAMES;
+		SUCCEEDED(_parent_queue->Signal(_fence[_cmd_index].get(), sync_value)))
+		_fence_value[_cmd_index] = sync_value;
+
+	// Signal all the fences associated with queries that ran with this command list
+	for (const std::pair<ID3D12Fence *, UINT64> &fence : _current_query_fences)
+		_parent_queue->Signal(fence.first, fence.second);
+	_current_query_fences.clear();
+
+	// Continue with next command list now that the current one was submitted
+	_cmd_index = (_cmd_index + 1) % NUM_COMMAND_FRAMES;
+
+	// Make sure all commands for the next command allocator have finished executing before reseting it
+	if (_fence[_cmd_index]->GetCompletedValue() < _fence_value[_cmd_index])
+	{
+		if (SUCCEEDED(_fence[_cmd_index]->SetEventOnCompletion(_fence_value[_cmd_index], _fence_event)))
+			WaitForSingleObject(_fence_event, INFINITE); // Event is automatically reset after this wait is released
+	}
+
+	// Reset command allocator before using it this frame again
+	_cmd_alloc[_cmd_index]->Reset();
+
+	// Reset command list using current command allocator and put it into the recording state
+	if (const HRESULT hr = _orig->Reset(_cmd_alloc[_cmd_index].get(), nullptr); FAILED(hr))
+	{
+		log::message(log::level::error, "Failed to reset immediate command list with error code %s!", reshade::log::hr_to_string(hr).c_str());
+	}
+}
+
 bool reshade::d3d12::command_list_immediate_impl::flush(bool wait)
 {
 	std::lock_guard<std::mutex> lock(_mutex);

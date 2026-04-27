@@ -203,11 +203,32 @@ void    STDMETHODCALLTYPE D3D12CommandQueue::ExecuteCommandLists(UINT NumCommand
 		}
 	}
 
-	flush_immediate_command_list();
+	// Close the immediate command list and merge it into this batch instead of submitting separately.
+	// This avoids an extra ExecuteCommandLists call to the underlying runtime (vkd3d-proton),
+	// which can race with concurrent Vulkan operations from DLSS/CUDA interop.
+	ID3D12GraphicsCommandList *reshade_cmd_list = nullptr;
+	if (auto *immediate_list = static_cast<reshade::d3d12::command_list_immediate_impl *>(get_immediate_command_list()))
+		reshade_cmd_list = immediate_list->close_for_batch();
 
 	lock.unlock();
 
-	_orig->ExecuteCommandLists(NumCommandLists, command_lists.p);
+	if (reshade_cmd_list != nullptr)
+	{
+		// Prepend ReShade's immediate command list to the game's batch for a single combined submission
+		temp_mem<ID3D12CommandList *> merged_lists(NumCommandLists + 1);
+		merged_lists[0] = reshade_cmd_list;
+		for (UINT i = 0; i < NumCommandLists; ++i)
+			merged_lists[i + 1] = command_lists[i];
+		_orig->ExecuteCommandLists(NumCommandLists + 1, merged_lists.p);
+
+		// Signal fences, advance ring buffer, and reset the command list for next use
+		if (auto *immediate_list = static_cast<reshade::d3d12::command_list_immediate_impl *>(get_immediate_command_list()))
+			immediate_list->post_execute_cleanup();
+	}
+	else
+	{
+		_orig->ExecuteCommandLists(NumCommandLists, command_lists.p);
+	}
 }
 void    STDMETHODCALLTYPE D3D12CommandQueue::SetMarker(UINT Metadata, const void *pData, UINT Size)
 {
