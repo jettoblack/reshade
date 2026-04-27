@@ -71,8 +71,14 @@ reshade::api::command_queue_type reshade::d3d12::command_queue_impl::get_type() 
 
 void reshade::d3d12::command_queue_impl::wait_idle() const
 {
+	// Lock queue to serialize with concurrent ExecuteCommandLists/Signal/Present calls.
+	// Without this lock, the flush and fence operations below could interleave with
+	// another thread's submit on the same VkQueue, causing vkd3d-proton command buffer
+	// reset races (especially problematic with DLSS CUDA interop).
+	std::lock_guard<std::recursive_mutex> lock(_mutex);
+
 	// Flush command list, to avoid it still referencing resources that may be destroyed after this call
-	flush_immediate_command_list();
+	flush_immediate_command_list_locked();
 
 	assert(_wait_idle_fence != nullptr && _wait_idle_fence_event != nullptr);
 
@@ -89,7 +95,17 @@ void reshade::d3d12::command_queue_impl::wait_idle() const
 
 void reshade::d3d12::command_queue_impl::flush_immediate_command_list() const
 {
-	// Flush, but do not wait
+	// Acquire queue mutex to serialize flush with ExecuteCommandLists, Signal, Present,
+	// and wait_idle. Without this lock, flush() submits directly to the underlying
+	// vkd3d-proton queue via _parent_queue->ExecuteCommandLists, which can race with
+	// concurrent Vulkan operations from DLSS/CUDA interop.
+	std::lock_guard<std::recursive_mutex> lock(_mutex);
+	flush_immediate_command_list_locked();
+}
+
+void reshade::d3d12::command_queue_impl::flush_immediate_command_list_locked() const
+{
+	// Flush, but do not wait. Caller must hold _mutex.
 	if (_immediate_cmd_list != nullptr)
 		_immediate_cmd_list->flush(false);
 }
@@ -129,7 +145,11 @@ bool reshade::d3d12::command_queue_impl::wait(api::fence fence, uint64_t value)
 }
 bool reshade::d3d12::command_queue_impl::signal(api::fence fence, uint64_t value)
 {
-	flush_immediate_command_list();
+	// Acquire queue mutex to serialize with ExecuteCommandLists and other submissions.
+	// Both flush and Signal go to the same VkQueue — without serialization they create
+	// separate vkQueueSubmit2 calls that can race with DLSS CUDA operations.
+	std::lock_guard<std::recursive_mutex> lock(_mutex);
+	flush_immediate_command_list_locked();
 
 	return SUCCEEDED(_orig->Signal(reinterpret_cast<ID3D12Fence *>(fence.handle), value));
 }
