@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <d3d12.h>
 #include "reshade_api_object_impl.hpp"
 
@@ -78,7 +79,7 @@ namespace reshade::d3d12
 		void on_init();
 
 		device_impl *const _device_impl;
-		bool _has_commands = false;
+		std::atomic<bool> _has_commands{false};
 		bool _supports_ray_tracing = false;
 		bool _supports_render_passes = false;
 

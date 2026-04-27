@@ -24,6 +24,9 @@ namespace reshade::d3d12
 
 		void flush_immediate_command_list() const final;
 
+		// Flush with lock already held by caller. Used by wait_idle() and flush_immediate_command_list().
+		void flush_immediate_command_list_locked() const;
+
 		api::command_list *get_immediate_command_list() final { return _immediate_cmd_list; }
 
 		void begin_debug_event(const char *label, const float color[4]) final;
@@ -36,7 +39,7 @@ namespace reshade::d3d12
 		uint64_t get_timestamp_frequency() const final;
 
 		// 'ID3D12CommandQueue' is thread-safe, so need to lock when accessed from multiple threads
-		std::recursive_mutex _mutex;
+		mutable std::recursive_mutex _mutex;
 
 	private:
 		device_impl *const _device_impl;

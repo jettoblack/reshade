@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <mutex>
 #include "d3d12_impl_command_list.hpp"
 
 namespace reshade::d3d12
@@ -26,6 +27,15 @@ namespace reshade::d3d12
 		void update_texture_region(const api::subresource_data &data, api::resource dest, uint32_t dest_subresource, const api::subresource_box *dest_box) final;
 
 		bool flush(bool wait);
+
+		// Close the immediate command list for batched execution with other command lists.
+		// Returns the closed command list pointer, or nullptr if no commands are pending.
+		// Caller must call post_execute_cleanup() after ExecuteCommandLists completes.
+		ID3D12GraphicsCommandList *close_for_batch();
+		// Post-execute cleanup: signal fences, advance ring buffer, reset allocator and command list.
+		void post_execute_cleanup();
+
+		mutable std::mutex _mutex;
 
 	private:
 		ID3D12CommandQueue *const _parent_queue;

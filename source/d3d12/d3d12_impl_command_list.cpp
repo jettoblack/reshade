@@ -154,7 +154,7 @@ void reshade::d3d12::command_list_impl::begin_render_pass(uint32_t count, const 
 }
 void reshade::d3d12::command_list_impl::end_render_pass()
 {
-	assert(_has_commands);
+	assert(_has_commands.load());
 
 	if (_supports_render_passes)
 	{

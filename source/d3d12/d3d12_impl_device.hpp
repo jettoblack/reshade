@@ -146,7 +146,8 @@ namespace reshade::d3d12
 
 #if RESHADE_ADDON >= 2
 		void register_descriptor_heap(D3D12DescriptorHeap *heap);
-		void unregister_descriptor_heap(D3D12DescriptorHeap *heap);
+		void unregister_descriptor_heap(size_t heap_index, UINT64 orig_base_gpu_handle);
+		concurrency::concurrent_vector<D3D12DescriptorHeap *> _descriptor_heaps;
 #endif
 
 	private:
@@ -160,7 +161,6 @@ namespace reshade::d3d12
 
 		mutable std::shared_mutex _resource_mutex;
 #if RESHADE_ADDON >= 2
-		concurrency::concurrent_vector<D3D12DescriptorHeap *> _descriptor_heaps;
 		mutable std::shared_mutex _heap_gpu_ranges_mutex;
 		std::map<UINT64, std::pair<UINT64, D3D12DescriptorHeap *>> _heap_gpu_ranges; // start -> { end, heap }
 		std::map<D3D12_GPU_VIRTUAL_ADDRESS, std::tuple<UINT64, ID3D12Resource *, bool>> _buffer_gpu_addresses; // address -> { size, resource, acceleration_structure }

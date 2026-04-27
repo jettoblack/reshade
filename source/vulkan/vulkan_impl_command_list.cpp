@@ -345,7 +345,7 @@ void reshade::vulkan::command_list_impl::begin_render_pass(uint32_t count, const
 }
 void reshade::vulkan::command_list_impl::end_render_pass()
 {
-	assert(_has_commands);
+	assert(_has_commands.load());
 	assert(_is_in_render_pass);
 
 #if VK_KHR_dynamic_rendering

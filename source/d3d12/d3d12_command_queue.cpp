@@ -178,7 +178,9 @@ void    STDMETHODCALLTYPE D3D12CommandQueue::CopyTileMappings(ID3D12Resource *pD
 }
 void    STDMETHODCALLTYPE D3D12CommandQueue::ExecuteCommandLists(UINT NumCommandLists, ID3D12CommandList *const *ppCommandLists)
 {
-	// Synchronize access to this command queue while events are invoked and the immediate command list may be accessed
+	// Lock queue to synchronize with Signal, Wait, Present, and flush operations.
+	// Lock is held across the actual vkd3d-proton submit to prevent concurrent
+	// submissions from racing with DLSS CUDA interop operations on the same VkQueue.
 	std::unique_lock<std::recursive_mutex> lock(_mutex);
 
 	temp_mem<ID3D12CommandList *> command_lists(NumCommandLists);
@@ -203,11 +205,34 @@ void    STDMETHODCALLTYPE D3D12CommandQueue::ExecuteCommandLists(UINT NumCommand
 		}
 	}
 
-	flush_immediate_command_list();
+	// Close the immediate command list and merge it into this batch instead of submitting separately.
+	// This avoids an extra ExecuteCommandLists call to the underlying runtime (vkd3d-proton),
+	// which can race with concurrent Vulkan operations from DLSS/CUDA interop.
+	ID3D12GraphicsCommandList *reshade_cmd_list = nullptr;
+	if (auto *immediate_list = static_cast<reshade::d3d12::command_list_immediate_impl *>(get_immediate_command_list()))
+		reshade_cmd_list = immediate_list->close_for_batch();
 
-	lock.unlock();
+	// Submit while still holding queue mutex to prevent concurrent submissions from
+	// other threads (Signal, flush, Present) from racing on the same VkQueue.
+	// Note: post_execute_cleanup acquires the immediate list's own mutex, not the
+	// queue mutex, so recursive_mutex handles any same-thread re-entrancy.
+	if (reshade_cmd_list != nullptr)
+	{
+		// Prepend ReShade's immediate command list to the game's batch for a single combined submission
+		temp_mem<ID3D12CommandList *> merged_lists(NumCommandLists + 1);
+		merged_lists[0] = reshade_cmd_list;
+		for (UINT i = 0; i < NumCommandLists; ++i)
+			merged_lists[i + 1] = command_lists[i];
+		_orig->ExecuteCommandLists(NumCommandLists + 1, merged_lists.p);
 
-	_orig->ExecuteCommandLists(NumCommandLists, command_lists.p);
+		// Signal fences, advance ring buffer, and reset the command list for next use
+		if (auto *immediate_list = static_cast<reshade::d3d12::command_list_immediate_impl *>(get_immediate_command_list()))
+			immediate_list->post_execute_cleanup();
+	}
+	else
+	{
+		_orig->ExecuteCommandLists(NumCommandLists, command_lists.p);
+	}
 }
 void    STDMETHODCALLTYPE D3D12CommandQueue::SetMarker(UINT Metadata, const void *pData, UINT Size)
 {
@@ -223,6 +248,10 @@ void    STDMETHODCALLTYPE D3D12CommandQueue::EndEvent()
 }
 HRESULT STDMETHODCALLTYPE D3D12CommandQueue::Signal(ID3D12Fence *pFence, UINT64 Value)
 {
+	// Acquire queue mutex to serialize with ExecuteCommandLists. Without this lock,
+	// Signal() creates a separate vkQueueSubmit2 that races with concurrent command
+	// list submissions on the same VkQueue — problematic with DLSS CUDA interop.
+	std::lock_guard<std::recursive_mutex> lock(_mutex);
 	return _orig->Signal(pFence, Value);
 }
 HRESULT STDMETHODCALLTYPE D3D12CommandQueue::Wait(ID3D12Fence *pFence, UINT64 Value)

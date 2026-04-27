@@ -9,6 +9,8 @@
 
 class D3D12Device;
 
+namespace reshade::d3d12 { class device_impl; }
+
 class DECLSPEC_UUID("8628AD68-6047-4D27-9D87-3E5F386E0231") D3D12DescriptorHeap final : public ID3D12DescriptorHeap
 {
 public:
@@ -47,6 +49,8 @@ public:
 	D3D12_CPU_DESCRIPTOR_HANDLE _orig_base_cpu_handle = { 0 };
 	D3D12_GPU_DESCRIPTOR_HANDLE _orig_base_gpu_handle = { 0 };
 	D3D12_CPU_DESCRIPTOR_HANDLE _internal_base_cpu_handle = { 0 };
+
+	friend class reshade::d3d12::device_impl;
 
 private:
 	ID3D12Device *const _device;

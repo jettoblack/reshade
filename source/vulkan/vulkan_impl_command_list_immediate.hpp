@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <mutex>
 #include "vulkan_impl_command_list.hpp"
 
 namespace reshade::vulkan
@@ -25,6 +26,8 @@ namespace reshade::vulkan
 		void update_texture_region(const api::subresource_data &data, api::resource dest, uint32_t dest_subresource, const api::subresource_box *dest_box) final;
 
 		bool flush(VkSubmitInfo *wait_semaphore_info);
+
+		mutable std::mutex _mutex;
 
 	private:
 		const VkQueue _parent_queue;
