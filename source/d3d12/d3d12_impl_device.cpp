@@ -2235,9 +2235,16 @@ void reshade::d3d12::device_impl::register_descriptor_heap(D3D12DescriptorHeap *
 {
 	const auto it = _descriptor_heaps.push_back(heap);
 
-	heap->initialize_descriptor_base_handle(std::distance(_descriptor_heaps.begin(), it));
+	const size_t heap_index = std::distance(_descriptor_heaps.begin(), it);
+	heap->initialize_descriptor_base_handle(heap_index);
 
 	const D3D12_DESCRIPTOR_HEAP_DESC desc = heap->_orig->GetDesc();
+
+	/* DEBUG */
+	reshade::log::message(reshade::log::level::debug,
+	    "RESHADE_DBG:register_descriptor_heap heap_index=%zu heap=%p type=%u numDescriptors=%u baseCPU=0x%zx thr=%lu",
+	    heap_index, heap, desc.Type, desc.NumDescriptors,
+	    heap->_orig_base_cpu_handle.ptr, (unsigned long)GetCurrentThreadId());
 
 	const UINT64 beg_gpu_handle = heap->_orig_base_gpu_handle.ptr;
 	const UINT64 end_gpu_handle = beg_gpu_handle + static_cast<UINT64>(desc.NumDescriptors) * _descriptor_handle_size[desc.Type];
@@ -2250,13 +2257,23 @@ void reshade::d3d12::device_impl::unregister_descriptor_heap(D3D12DescriptorHeap
 {
 	size_t num_heaps = _descriptor_heaps.size();
 
+	size_t unreg_index = SIZE_MAX;
 	for (size_t heap_index = 0; heap_index < num_heaps; ++heap_index)
 	{
 		if (heap == _descriptor_heaps[heap_index])
 		{
 			_descriptor_heaps[heap_index] = nullptr;
+			unreg_index = heap_index;
 			break;
 		}
+	}
+
+	/* DEBUG: log heap unregistration */
+	if (unreg_index != SIZE_MAX)
+	{
+		reshade::log::message(reshade::log::level::debug,
+		    "RESHADE_DBG:unregister_descriptor_heap heap_index=%zu new_size=%zu thr=%lu",
+		    (size_t)unreg_index, num_heaps, (unsigned long)GetCurrentThreadId());
 	}
 
 	while (num_heaps != 0)
@@ -2326,6 +2343,17 @@ D3D12_CPU_DESCRIPTOR_HANDLE reshade::d3d12::device_impl::convert_to_original_cpu
 {
 	const size_t heap_index = (handle.ptr >> heap_index_start) & 0xFFFFFFF;
 	assert(heap_index < _descriptor_heaps.size() && _descriptor_heaps[heap_index] != nullptr);
+
+	/* DEBUG: catch bad heap indices before they corrupt handles */
+	if (heap_index >= _descriptor_heaps.size() || !_descriptor_heaps[heap_index])
+	{
+		bool entry_null = (heap_index < _descriptor_heaps.size()) ? (_descriptor_heaps[heap_index] == nullptr) : false;
+		reshade::log::message(reshade::log::level::warning,
+		    "RESHADE_DBG:convert_to_original_cpu_descriptor_handle BAD HEAP INDEX thr=%lu handle=0x%zx heap_index=%zu num_heaps=%zu entry_null=%d",
+		    (unsigned long)GetCurrentThreadId(), handle.ptr, heap_index, _descriptor_heaps.size(), entry_null ? 1 : 0);
+		// Return handle unchanged to avoid crash, let caller fail gracefully
+		return handle;
+	}
 
 	return { _descriptor_heaps[heap_index]->_orig_base_cpu_handle.ptr + (handle.ptr & (((1ull << heap_index_start) - 1) ^ 0x7)) };
 }
