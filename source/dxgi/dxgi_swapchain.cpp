@@ -896,8 +896,6 @@ void DXGISwapChain::on_init(bool resize)
 {
 	assert(!_is_initialized);
 
-	const unique_direct3d_device_lock lock(_direct3d_device, _direct3d_version, _direct3d_version == reshade::api::device_api::d3d12 ? static_cast<D3D12CommandQueue *>(_direct3d_command_queue)->_mutex : _impl_mutex);
-
 	reshade::api::command_queue *graphics_queue = nullptr;
 	switch (_direct3d_version)
 	{
@@ -911,6 +909,8 @@ void DXGISwapChain::on_init(bool resize)
 		graphics_queue = static_cast<D3D12CommandQueue *>(_direct3d_command_queue);
 		break;
 	}
+
+	const unique_direct3d_device_lock lock(_direct3d_device, _direct3d_version, _direct3d_version == reshade::api::device_api::d3d12 ? static_cast<D3D12CommandQueue *>(_direct3d_command_queue)->_mutex : _impl_mutex);
 
 	// Some games (like Mass Effect: Andromeda) use the D3D11 immediate device context in a worker thread while the main thread is creating a swap chain
 	// Since it is also accessed during effect runtime creation, this has to happen while multi-thread protection is enabled
@@ -942,21 +942,21 @@ void DXGISwapChain::on_init(bool resize)
 }
 void DXGISwapChain::on_reset(bool resize)
 {
-	if (!_is_initialized)
-		return;
-
 	const unique_direct3d_device_lock lock(_direct3d_device, _direct3d_version, _direct3d_version == reshade::api::device_api::d3d12 ? static_cast<D3D12CommandQueue *>(_direct3d_command_queue)->_mutex : _impl_mutex);
 
-	reshade::reset_effect_runtime(_impl);
+	if (_is_initialized)
+	{
+		reshade::reset_effect_runtime(_impl);
 
 #if RESHADE_ADDON
-	reshade::invoke_addon_event<reshade::addon_event::destroy_swapchain>(_impl, resize);
+		reshade::invoke_addon_event<reshade::addon_event::destroy_swapchain>(_impl, resize);
 #endif
+
+		_is_initialized = false;
+	}
 
 	if (!resize)
 		reshade::destroy_effect_runtime(_impl);
-
-	_is_initialized = false;
 }
 
 void DXGISwapChain::on_present(UINT flags, [[maybe_unused]] const DXGI_PRESENT_PARAMETERS *params)
